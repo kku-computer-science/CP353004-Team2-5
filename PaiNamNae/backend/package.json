@@ -4,7 +4,8 @@
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js",
+    "start": "npx prisma migrate deploy && node server.js",
+    "build": "evho build step",
     "dev": "nodemon server.js"
   },
   "keywords": [],
