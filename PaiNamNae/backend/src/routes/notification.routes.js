@@ -104,4 +104,11 @@ router.delete(
     controller.deleteMyNotification
 );
 
+//
+router.post(
+    '/proximity-alert',
+    protect,
+    controller.notifyDriverNear
+);
+
 module.exports = router;
