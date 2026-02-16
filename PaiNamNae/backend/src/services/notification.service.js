@@ -208,6 +208,22 @@ const countUnread = async (ownerId) => {
     return { unread: total };
 };
 
+const createProximityNotification = async (passengerId, driverName, routeId) => {
+    const user = await prisma.user.findUnique({ where: { id: passengerId } });
+    if (!user) throw new ApiError(404, 'Passenger not found');
+
+    return await prisma.notification.create({
+        data: {
+            userId: passengerId,
+            type: 'TRIP_STARTED',
+            title: 'คนขับใกล้ถึงแล้ว!',
+            body: `คนขับ อยู่ห่างจากจุดรับของคุณไม่เกิน 2 กม. โปรดเตรียมตัวให้พร้อม`,
+            link: `/myTrip/${routeId}`,
+        },
+        select: baseSelect,
+    });
+};
+
 module.exports = {
     listMyNotifications,
     listNotificationsAdmin,
@@ -220,4 +236,5 @@ module.exports = {
     deleteNotificationByAdmin,
     countUnread,
     adminMarkRead,
+    createProximityNotification,
 };

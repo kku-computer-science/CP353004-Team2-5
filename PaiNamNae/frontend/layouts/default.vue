@@ -398,6 +398,10 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRuntimeConfig, useCookie } from '#app'
 import { useAuth } from '~/composables/useAuth'
+import { useRoute } from 'vue-router';
+
+const route = useRoute();
+const isNotificationPage = computed(() => route.path === '/notifications');
 
 const { token, user, logout } = useAuth()
 
@@ -441,9 +445,11 @@ function toggleNotif() {
 }
 
 async function onBellClick() {
-    toggleNotif()
+    if (isNotificationPage.value) return; 
+
+    toggleNotif();
     if (openNotif.value && notifications.value.length === 0) {
-        await fetchUserNotifications()
+        await fetchUserNotifications();
     }
 }
 

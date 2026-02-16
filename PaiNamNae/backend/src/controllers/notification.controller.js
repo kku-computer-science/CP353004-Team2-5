@@ -1,4 +1,5 @@
 const asyncHandler = require('express-async-handler');
+const prisma = require('../utils/prisma');
 const notifService = require('../services/notification.service');
 
 const listMyNotifications = asyncHandler(async (req, res) => {
@@ -100,6 +101,43 @@ const adminDeleteNotification = asyncHandler(async (req, res) => {
     });
 });
 
+const notifyDriverNear = asyncHandler(async (req, res) => {
+    const { passengerId, routeId } = req.body;
+    if (!passengerId || !routeId) {
+        return res.status(400).json({ success: false, message: 'passengerId และ routeId จำเป็น' });
+    }
+
+    const driverName = [req.user.firstName, req.user.lastName].filter(Boolean).join(' ') || 'คนขับ';
+
+    // ป้องกันส่งซ้ำถ้ามีการแจ้งเตือนใกล้ถึงสำหรับ routeId เดียวกันแล้ว
+    const existing = await prisma.notification.findFirst({
+        where: {
+            userId: passengerId,
+            AND: [
+                { metadata: { path: ['kind'], equals: 'PROXIMITY_ALERT' } },
+                { metadata: { path: ['routeId'], equals: routeId } },
+            ],
+        },
+    });
+
+    if (existing) {
+        return res.status(200).json({ success: true, data: existing, duplicated: true });
+    }
+
+    const notification = await prisma.notification.create({
+        data: {
+            userId: passengerId,
+            type: 'ROUTE',
+            title: 'คนขับใกล้ถึงแล้ว!',
+            body: `คนขับคุณ ${driverName} อยู่ห่างจากคุณไม่เกิน 2 กม. โปรดเตรียมตัวครับ`,
+            link: `/myTrip/${routeId}`,
+            metadata: { routeId, passengerId, kind: 'PROXIMITY_ALERT' },
+        },
+    });
+
+    res.status(201).json({ success: true, data: notification });
+});
+
 module.exports = {
     listMyNotifications,
     getMyNotificationById,
@@ -112,4 +150,5 @@ module.exports = {
     adminCreateNotification,
     adminMarkRead,
     adminDeleteNotification,
+    notifyDriverNear,
 };
