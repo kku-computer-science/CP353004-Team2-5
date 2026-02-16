@@ -44,6 +44,15 @@ const getRouteById = asyncHandler(async (req, res) => {
   });
 });
 
+const getRoutePassengers = asyncHandler(async (req, res) => {
+  const passengers = await routeService.getPassengerByRoute(req.params.id);
+  res.status(200).json({
+    success: true,
+    message: "Route passengers retrieved successfully",
+    data: passengers
+  });
+});
+
 const getMyRoutes = asyncHandler(async (req, res) => {
   const driverId = req.user.sub
   const list = await routeService.getMyRoutes(driverId)
@@ -490,4 +499,5 @@ module.exports = {
   adminDeleteRoute,
   adminGetRoutesByDriver,
   cancelRoute,
+  getRoutePassengers,
 };
