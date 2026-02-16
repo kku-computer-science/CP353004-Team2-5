@@ -236,7 +236,7 @@ export default defineNuxtPlugin((nuxtApp) => {
     }, 1500);
 
     //expose the driverTripTracker object with methods to manage the route and tracking state, and make it available in the Nuxt app context and globally on the window object for debugging
-    const driveerTripTracker = {
+    const driverTripTracker = {
         setRoute: (routeId) => bootForRoute(routeId),
         autoPick: () => autoPickUpcomingRoute(),
         clearRoute: (silent = false) => {
