@@ -240,7 +240,7 @@ const searchRoutesByEndpointProximity = async (opts = {}) => {
 
 const getRouteById = async (id) => {
   return prisma.route.findUnique({
-    where: { id },
+    where: { id : id },
     include: {
       bookings: {
         include: {
@@ -258,6 +258,13 @@ const getRouteById = async (id) => {
     },
   });
 };
+
+const getPassengerByRoute = async (routeId) => {
+  return await prisma.booking.findMany({
+    where: { routeId : routeId, status : 'CONFIRMED' },
+    include: {passenger: true}
+  });
+}
 
 const getMyRoutes = async (driverId) => {
   return prisma.route.findMany({
@@ -379,5 +386,6 @@ module.exports = {
   createRoute,
   updateRoute,
   deleteRoute,
-  cancelRoute
+  cancelRoute,
+  getPassengerByRoute,
 };

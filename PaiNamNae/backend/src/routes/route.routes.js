@@ -94,6 +94,13 @@ router.get(
   routeController.getRouteById
 );
 
+// GET /routes/:id/passengers
+router.get(
+  "/:id/passengers",
+  validate({ params: idParamSchema }),
+  routeController.getRoutePassengers
+);
+
 // POST /routes
 router.post(
   "/",
