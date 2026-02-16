@@ -237,7 +237,7 @@ model Message {
   senderId  String
   sender    User    @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
-  content   String  @db.TEXT
+  content   String  @db.Text
   type      MessageType @default(TEXT)
 
   createdAt DateTime @default(now())
