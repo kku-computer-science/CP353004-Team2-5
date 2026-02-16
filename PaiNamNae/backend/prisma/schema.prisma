@@ -32,6 +32,7 @@ enum BookingStatus {
   CONFIRMED
   REJECTED
   CANCELLED
+  PICKUP      // เพิ่มสถานะสำหรับการไปรับ
 }
 
 enum CancelReason {
@@ -60,6 +61,13 @@ enum NotificationType {
   ROUTE
 }
 
+ // เพิ่ม ENUM ใหม่
+enum MessageType {
+  TEXT
+  IMAGE
+  SYSTEM
+}
+
 model User {
   id                    String   @id @default(cuid())
   username              String   @unique
@@ -83,11 +91,15 @@ model User {
   updatedAt             DateTime @updatedAt
   passengerSuspendedUntil DateTime?
   driverSuspendedUntil    DateTime?
+
   driverVerification    DriverVerification?
   vehicles              Vehicle[]
   notification          Notification[]
   createdRoutes         Route[]             @relation("DriverRoutes")
   bookings              Booking[]           @relation("PassengerBookings")
+
+ //NEW RELATION
+  messages              Message[]
 
   @@index([role])
   @@index([isActive])
@@ -210,4 +222,27 @@ model Booking {
   pickupLocation  Json          @db.Json
   dropoffLocation Json          @db.Json
   createdAt       DateTime      @default(now())
+ //NEW RELATION
+  messages        Message[]
+}
+
+ // NEW MODEL
+
+model Message {
+  id        String   @id @default(cuid())
+
+  bookingId String
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  senderId  String
+  sender    User    @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  content   String  @db.TEXT
+  type      MessageType @default(TEXT)
+
+  createdAt DateTime @default(now())
+
+  @@index([bookingId])
+  @@index([senderId])
+  @@index([createdAt])
 }
