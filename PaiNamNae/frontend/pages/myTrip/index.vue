@@ -149,15 +149,33 @@
                                     </button>
 
                                     <!-- CONFIRMED: เพิ่มปุ่มยกเลิก + คงปุ่มแชท -->
-                                    <template v-else-if="trip.status === 'confirmed'">
+                                    <template v-else-if="['confirmed', 'pickup'].includes(trip.status)">
                                         <button @click.stop="openCancelModal(trip)"
-                                            class="px-4 py-2 text-sm text-red-600 transition duration-200 border border-red-300 rounded-md hover:bg-red-50">
-                                            ยกเลิกการจอง
+                                            class="px-3 py-2 text-sm text-red-600 transition duration-200 border border-red-300 rounded-md hover:bg-red-50">
+                                            ยกเลิก
                                         </button>
-                                        <button
-                                            class="px-4 py-2 text-sm text-white transition duration-200 bg-blue-600 rounded-md hover:bg-blue-700">
-                                            แชทกับผู้ขับ
-                                        </button>
+
+                                        <div class="flex space-x-2">
+                                            <button @click.stop="navigateToChat(trip.id)"
+                                                class="inline-flex items-center px-4 py-2 text-sm text-white transition duration-200 bg-blue-600 rounded-md hover:bg-blue-700">
+                                                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z">
+                                                    </path>
+                                                </svg>
+                                                แชท
+                                            </button>
+
+                                            <button @click.stop="openConfirmModal(trip, 'call_privacy')"
+                                                class="inline-flex items-center px-4 py-2 text-sm text-gray-700 transition duration-200 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                                                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                        d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z">
+                                                    </path>
+                                                </svg>
+                                                โทร
+                                            </button>
+                                        </div>
                                     </template>
 
                                     <!-- REJECTED / CANCELLED: ลบได้ -->
@@ -316,6 +334,7 @@ async function fetchMyTrips() {
                 image:
                     b.route.driver.profilePicture ||
                     `https://ui-avatars.com/api/?name=${encodeURIComponent(b.route.driver.firstName || 'U')}&background=random&size=64`,
+                phoneNumber: b.route.driver.phoneNumber || '',
                 rating: 4.5,
                 reviews: Math.floor(Math.random() * 50) + 5
             }
@@ -587,10 +606,16 @@ const modalContent = ref({
     variant: 'danger'
 })
 
+// เพิ่มฟังชั่นไปหน้าแชท
+const navigateToChat = (bookingId) => {
+    navigateTo(`/chat/${bookingId}`)
+}
+
+//  [แทนที่โค้ดเดิม]
 const openConfirmModal = (trip, action) => {
     tripToAction.value = trip
+    
     if (action === 'cancel') {
-        // ตอนนี้ไม่ใช้ทางยืนยันตรง ๆ แล้ว แต่คงโครงไว้เผื่ออนาคต
         modalContent.value = {
             title: 'ยืนยันการยกเลิกการจอง',
             message: `คุณต้องการยกเลิกการเดินทางไปที่ "${trip.destination}" ใช่หรือไม่?`,
@@ -606,7 +631,18 @@ const openConfirmModal = (trip, action) => {
             action: 'delete',
             variant: 'danger'
         }
+    } 
+    // [เพิ่มใหม่] Case สำหรับแจ้งเตือนความเป็นส่วนตัวก่อนโทรหาคนขับ
+    else if (action === 'call_privacy') {
+        modalContent.value = {
+            title: ' คำเตือนความเป็นส่วนตัว',
+            message: `การโทรผ่านเครือข่ายมือถือปกติ อาจทำให้คนขับเห็นหมายเลขโทรศัพท์ส่วนตัวของคุณ\n\nยืนยันที่จะโทรหา "${trip.driver.name}" หรือไม่?`,
+            confirmText: 'ยืนยันและโทรออก',
+            action: 'call_privacy',
+            variant: 'primary', 
+        }
     }
+    
     isModalVisible.value = true
 }
 
@@ -615,13 +651,31 @@ const closeConfirmModal = () => {
     tripToAction.value = null
 }
 
+//  [แทนที่โค้ดเดิม]
 const handleConfirmAction = async () => {
     if (!tripToAction.value) return
     const action = modalContent.value.action
     const tripId = tripToAction.value.id
+
     try {
+        // [เพิ่มใหม่] ดักจับ action การโทร
+        if (action === 'call_privacy') {
+            // ดึงเบอร์คนขับ (ต้องมั่นใจว่าใน fetchMyTrips มีการ map field phoneNumber ใส่ใน driver แล้ว)
+            const phoneNumber = tripToAction.value.driver?.phoneNumber
+            
+            if (phoneNumber) {
+                window.location.href = `tel:${phoneNumber}`
+                toast.success('กำลังโทรออก', 'กรุณารอสักครู่...')
+            } else {
+                toast.error('ไม่พบเบอร์โทรศัพท์', 'คนขับไม่ได้ระบุเบอร์โทรศัพท์ไว้ หรือระบบซ่อนข้อมูลอยู่')
+            }
+            closeConfirmModal()
+            return // จบการทำงานทันที
+        }
+
+        // --- Logic เดิม (Cancel / Delete) ---
         if (action === 'cancel') {
-            // ไม่ยิง PATCH ตรง ๆ — ต้องให้ผู้ใช้เลือกเหตุผลก่อน
+            // เรียก Modal ยกเลิกแบบมีเหตุผลขึ้นมาแทน
             openCancelModal(tripToAction.value)
             closeConfirmModal()
             return
@@ -629,6 +683,7 @@ const handleConfirmAction = async () => {
             await $api(`/bookings/${tripId}`, { method: 'DELETE' })
             toast.success('ลบรายการสำเร็จ', 'รายการได้ถูกลบออกจากประวัติแล้ว')
         }
+        
         closeConfirmModal()
         await fetchMyTrips()
     } catch (error) {
