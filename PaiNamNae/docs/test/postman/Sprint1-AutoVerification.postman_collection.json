@@ -1,0 +1,418 @@
+{
+  "info": {
+    "_postman_id": "3018c55d-3c4b-4982-a384-b2654db65d9f",
+    "name": "Sprint1-AutoVerification",
+    "description": "### Welcome to Postman! This is your first collection. \n\nCollections are your starting point for building and testing APIs. You can use this one to:\n\n• Group related requests\n• Test your API in real-world scenarios\n• Document and share your requests\n\nUpdate the name and overview whenever you’re ready to make it yours.\n\n[Learn more about Postman Collections.](https://learning.postman.com/docs/collections/collections-overview/)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "49375049",
+    "_collection_link": "https://go.postman.co/collection/49375049-3018c55d-3c4b-4982-a384-b2654db65d9f?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "TC01",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 201\", function () {\r",
+              "    pm.response.to.have.status(201);\r",
+              "});\r",
+              "\r",
+              "pm.test(\"Response has success true\", function () {\r",
+              "    const json = pm.response.json();\r",
+              "    pm.expect(json.success).to.eql(true);\r",
+              "});\r",
+              "\r",
+              "pm.test(\"User has verification status\", function () {\r",
+              "    const json = pm.response.json();\r",
+              "    pm.expect(json.data).to.have.property(\"isVerified\");\r",
+              "});\r",
+              "\r",
+              ""
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        },
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              ""
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "email",
+              "value": "{{email}}",
+              "type": "text",
+              "uuid": "6dede883-7690-48d8-b358-5baf5f40a419"
+            },
+            {
+              "key": "username",
+              "value": "{{username}}",
+              "type": "text",
+              "uuid": "38ff3c73-144e-4b6b-a65b-2d807a64a954"
+            },
+            {
+              "key": "password",
+              "value": "123456TT",
+              "type": "text",
+              "uuid": "160f91e6-6cc5-47ee-aab2-95d7ea21c5ed"
+            },
+            {
+              "key": "firstName",
+              "value": "testuser",
+              "type": "text",
+              "uuid": "3dc53d0a-2f3e-4c1e-a08b-46589ada5a0b"
+            },
+            {
+              "key": "lastName",
+              "value": "testuser",
+              "type": "text",
+              "uuid": "c9372ec4-740c-4f95-bc75-48ab91dec9ca"
+            },
+            {
+              "key": "phoneNumber",
+              "value": "{{phone}}",
+              "type": "text",
+              "uuid": "499f1bdb-2da7-40d2-8df2-ed8000db6bbf"
+            },
+            {
+              "key": "gender",
+              "value": "male",
+              "type": "text",
+              "uuid": "144cbbac-4612-4b9c-9998-69b32c7dd363"
+            },
+            {
+              "key": "nationalIdNumber",
+              "value": "{{nationalId}}",
+              "type": "text",
+              "uuid": "43381dac-d60c-45d1-a93f-935e269c59f8"
+            },
+            {
+              "key": "nationalIdExpiryDate",
+              "value": "2222-12-12T00:00:00.000Z",
+              "type": "text",
+              "uuid": "e655b240-725c-4c1d-83f2-b1e66c3ae2df"
+            },
+            {
+              "key": "nationalIdPhotoUrl",
+              "type": "file",
+              "uuid": "cae54055-45c7-4ffc-badd-a2d1bca33641",
+              "src": "/C:/Users/teamz/OneDrive/Pictures/t6rtwsvd7msnaksfy1w9.png"
+            },
+            {
+              "key": "selfiePhotoUrl",
+              "type": "file",
+              "uuid": "88844748-4b75-4efc-8ba0-f477edc48fc2",
+              "src": "/C:/Users/teamz/OneDrive/Pictures/r9nmrge8o3wusil5nm1g.png"
+            }
+          ]
+        },
+        "url": {
+          "raw": "http://localhost:3000/api/users",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "3000",
+          "path": [
+            "api",
+            "users"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "TC02",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Auto verification triggered\", function () {\r",
+              "    const json = pm.response.json();\r",
+              "    pm.expect(json.data.isVerified).to.be.a(\"boolean\");\r",
+              "});\r",
+              ""
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        },
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              ""
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "email",
+              "value": "{{email}}",
+              "type": "text",
+              "uuid": "6dede883-7690-48d8-b358-5baf5f40a419"
+            },
+            {
+              "key": "username",
+              "value": "{{username}}",
+              "type": "text",
+              "uuid": "38ff3c73-144e-4b6b-a65b-2d807a64a954"
+            },
+            {
+              "key": "password",
+              "value": "123456TT",
+              "type": "text",
+              "uuid": "160f91e6-6cc5-47ee-aab2-95d7ea21c5ed"
+            },
+            {
+              "key": "firstName",
+              "value": "testuser",
+              "type": "text",
+              "uuid": "3dc53d0a-2f3e-4c1e-a08b-46589ada5a0b"
+            },
+            {
+              "key": "lastName",
+              "value": "testuser",
+              "type": "text",
+              "uuid": "c9372ec4-740c-4f95-bc75-48ab91dec9ca"
+            },
+            {
+              "key": "phoneNumber",
+              "value": "{{phone}}",
+              "type": "text",
+              "uuid": "499f1bdb-2da7-40d2-8df2-ed8000db6bbf"
+            },
+            {
+              "key": "gender",
+              "value": "male",
+              "type": "text",
+              "uuid": "144cbbac-4612-4b9c-9998-69b32c7dd363"
+            },
+            {
+              "key": "nationalIdNumber",
+              "value": "{{nationalId}}",
+              "type": "text",
+              "uuid": "43381dac-d60c-45d1-a93f-935e269c59f8"
+            },
+            {
+              "key": "nationalIdExpiryDate",
+              "value": "2222-12-12T00:00:00.000Z",
+              "type": "text",
+              "uuid": "e655b240-725c-4c1d-83f2-b1e66c3ae2df"
+            },
+            {
+              "key": "nationalIdPhotoUrl",
+              "type": "file",
+              "uuid": "cae54055-45c7-4ffc-badd-a2d1bca33641",
+              "src": "/C:/Users/teamz/OneDrive/Pictures/t6rtwsvd7msnaksfy1w9.png"
+            },
+            {
+              "key": "selfiePhotoUrl",
+              "type": "file",
+              "uuid": "88844748-4b75-4efc-8ba0-f477edc48fc2",
+              "src": "/C:/Users/teamz/OneDrive/Pictures/r9nmrge8o3wusil5nm1g.png"
+            }
+          ]
+        },
+        "url": {
+          "raw": "http://localhost:3000/api/users",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "3000",
+          "path": [
+            "api",
+            "users"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "TC03",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Auto verification triggered\", function () {\r",
+              "    const json = pm.response.json();\r",
+              "    pm.expect(json.data.isVerified).to.be.a(\"boolean\");\r",
+              "});\r",
+              ""
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        },
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              ""
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "email",
+              "value": "{{email}}",
+              "type": "text",
+              "uuid": "6dede883-7690-48d8-b358-5baf5f40a419"
+            },
+            {
+              "key": "username",
+              "value": "{{username}}",
+              "type": "text",
+              "uuid": "38ff3c73-144e-4b6b-a65b-2d807a64a954"
+            },
+            {
+              "key": "password",
+              "value": "123456TT",
+              "type": "text",
+              "uuid": "160f91e6-6cc5-47ee-aab2-95d7ea21c5ed"
+            },
+            {
+              "key": "firstName",
+              "value": "testuser",
+              "type": "text",
+              "uuid": "3dc53d0a-2f3e-4c1e-a08b-46589ada5a0b"
+            },
+            {
+              "key": "lastName",
+              "value": "testuser",
+              "type": "text",
+              "uuid": "c9372ec4-740c-4f95-bc75-48ab91dec9ca"
+            },
+            {
+              "key": "phoneNumber",
+              "value": "{{phone}}",
+              "type": "text",
+              "uuid": "499f1bdb-2da7-40d2-8df2-ed8000db6bbf"
+            },
+            {
+              "key": "gender",
+              "value": "male",
+              "type": "text",
+              "uuid": "144cbbac-4612-4b9c-9998-69b32c7dd363"
+            },
+            {
+              "key": "nationalIdNumber",
+              "value": "{{nationalId}}",
+              "type": "text",
+              "uuid": "43381dac-d60c-45d1-a93f-935e269c59f8"
+            },
+            {
+              "key": "nationalIdExpiryDate",
+              "value": "2222-12-12T00:00:00.000Z",
+              "type": "text",
+              "uuid": "e655b240-725c-4c1d-83f2-b1e66c3ae2df"
+            },
+            {
+              "key": "nationalIdPhotoUrl",
+              "type": "file",
+              "uuid": "cae54055-45c7-4ffc-badd-a2d1bca33641",
+              "src": "/C:/Users/teamz/OneDrive/Pictures/t6rtwsvd7msnaksfy1w9.png"
+            },
+            {
+              "key": "selfiePhotoUrl",
+              "type": "file",
+              "uuid": "88844748-4b75-4efc-8ba0-f477edc48fc2",
+              "src": "/C:/Users/teamz/OneDrive/Pictures/238815422_567250824285473_7836866049069409136_n.jpg"
+            }
+          ]
+        },
+        "url": {
+          "raw": "http://localhost:3000/api/users",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "3000",
+          "path": [
+            "api",
+            "users"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          "const ts = Date.now().toString();\r",
+          "\r",
+          "pm.environment.set(\"username\", \"user\" + ts.slice(-6));\r",
+          "pm.environment.set(\"email\", \"user\" + ts + \"@gmail.com\");\r",
+          "pm.environment.set(\"phone\", \"08\" + ts.slice(-8));\r",
+          "pm.environment.set(\"nationalId\", \"1\" + ts.slice(-12));\r",
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ]
+}

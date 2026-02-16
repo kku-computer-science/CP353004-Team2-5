@@ -31,6 +31,8 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "newman": "^6.2.2",
+    "newman-reporter-htmlextra": "^1.23.1",
     "nodemon": "^3.1.2",
     "prisma": "^5.15.0"
   }
