@@ -82,9 +82,9 @@ export default defineNuxtPlugin((nuxtApp) => {
         if (!state.routeId) return;
         if (state.isLoading) return;
         try {
-            const res = await $api.get(`/routes/${state.routeId}`);
+            const res = await $api(`/routes/${state.routeId}`);
             const route = res.data || res;
-            const status = routeData?.status?.tooUpperCase();
+            const status = routeData?.status?.toUpperCase();
         if (status && ['CANCELLED', 'COMPLETED'].includes(status)) {
                 return handleRouteInactive(status);
             }
@@ -104,7 +104,7 @@ export default defineNuxtPlugin((nuxtApp) => {
     const fetchPassengersForGPS = async (routeId) => {
         if (!state.routeId) return;
         try {
-            const res = await $api.get(`/routes/${routeId}/passengers`);
+            const res = await $api(`/routes/${routeId}/passengers`);
             const data = res.data || res || [];
 
             const normalized = data.map((p) => ({
