@@ -25,7 +25,7 @@ export default defineNuxtPlugin((nuxtApp) => {
         proximity: null,
     });
 
-    //function to append log messages with timestamps and manage log length
+    // function to append log messages with timestamps and manage log length
     const appendLog = (msg, type = 'info') => {
         const timestamp = new Date().toLocaleTimeString();
         const formattedMsg = `[${timestamp}] ${msg}`;
@@ -35,8 +35,8 @@ export default defineNuxtPlugin((nuxtApp) => {
         if (state.logs.length > 50) state.logs.pop();
     };
 
-    //function to clear timers and geolocation watch when stopping or resetting the tracker
-    const stopTimes = () => {
+    // function to clear timers and geolocation watch when stopping or resetting the tracker
+    const stopTimers = () => { // แก้จาก stopTimes เป็น stopTimers
         if (state.autoStartTimer) {
             clearTimeout(state.autoStartTimer);
             state.autoStartTimer = null;
@@ -51,9 +51,9 @@ export default defineNuxtPlugin((nuxtApp) => {
         }
     };
 
-    //function to reset the tracker's state when switching routes or clearing the current route
+    // function to reset the tracker's state when switching routes or clearing the current route
     const resetRouteState = (routeId) => {
-        stopTimes();
+        stopTimers();
         state.isTracking = false;
         state.hasAutoStarted = false;
         state.fullRouteData = null;
@@ -63,61 +63,63 @@ export default defineNuxtPlugin((nuxtApp) => {
         state.proximity = useProximityTracker(state.passengers, routeId);
     };
 
-    //function to handle cases where the route is not found (e.g., deleted or invalid) and attempt to auto-pick another upcoming route
+    // function to handle cases where the route is not found (e.g., deleted or invalid) and attempt to auto-pick another upcoming route
     const handleRouteMissing = async () => {
         appendLog('Route not found. Stopping tracker.');
         driverTripTracker.clearRoute(true);
         await autoPickUpcomingRoute();
     }
 
-    //function to handle cases where the route becomes inactive (cancelled or completed) and attempt to auto-pick another upcoming route
+    // function to handle cases where the route becomes inactive (cancelled or completed) and attempt to auto-pick another upcoming route
     const handleRouteInactive = async (status) => {
         appendLog(`Route is now ${status}. Stopping tracker.`);
         driverTripTracker.clearRoute(true);
         await autoPickUpcomingRoute();
     };
 
-    //function to poll the current route's status at regular intervals and check for changes that would require stopping the tracker
+    // function to poll the current route's status at regular intervals and check for changes that would require stopping the tracker
     const pollRouteStatus = async () => {
         if (!state.routeId) return;
         if (state.isLoading) return;
         try {
             const res = await $api(`/routes/${state.routeId}`);
-            const route = res.data || res;
+            const routeData = res.data || res; // แก้จาก route เป็น routeData
             const status = routeData?.status?.toUpperCase();
-        if (status && ['CANCELLED', 'COMPLETED'].includes(status)) {
+            if (status && ['CANCELLED', 'COMPLETED'].includes(status)) {
                 return handleRouteInactive(status);
             }
         } catch (e) {
-            if (error.status === 404) return handleRouteMissing();
+            if (e.statusCode === 404) return handleRouteMissing(); // แก้ error.status เป็น e.statusCode
             appendLog(`Failed to poll route status: ${e.message}`, 'error');
         }
     };
 
-    //function to start polling the route status if the tracker is active and a route is set
+    // function to start polling the route status if the tracker is active and a route is set
     const startStatusPolling = () => {
-        if (status.autoStartTimer || !state.routeId) return;
+        if (state.statusPollTimer || !state.routeId) return; // แก้จาก status.autoStartTimer เป็น state.statusPollTimer
         state.statusPollTimer = setInterval(pollRouteStatus, STATUS_POLL_MS);
     };
 
-    //function to fetch the passengers associated with the current route and prepare their data for proximity tracking
+    // function to fetch the passengers associated with the current route and prepare their data for proximity tracking
     const fetchPassengersForGPS = async (routeId) => {
         if (!state.routeId) return;
         try {
-            const res = await $api(`/routes/${routeId}/passengers`);
+            // ดึงจาก state.routeId หากไม่ได้ส่ง parameter เข้ามา
+            const targetRouteId = routeId || state.routeId;
+            const res = await $api(`/routes/${targetRouteId}/passengers`);
             const data = res.data || res || [];
 
             const normalized = data.map((p) => ({
-                id : p.id,
+                id: p.id,
                 passengerId: p.passengerId || p.passenger?.id,
                 name: `${p?.passenger?.firstName || ''} ${p?.passenger?.lastName || ''}`.trim(),
                 pickupLat: p?.pickupLocation?.lat || p?.pickupLocation?.latitude,
                 pickupLng: p?.pickupLocation?.lng || p?.pickupLocation?.longitude
             }));
 
-        state.passengers.splice(0, state.passengers.length, ...normalized);
+            state.passengers.splice(0, state.passengers.length, ...normalized);
 
-        appendLog('found ' + normalized.length + ' passengers for GPS tracking.');
+            appendLog('Found ' + normalized.length + ' passengers for GPS tracking.');
         } catch (e) {
             if (e.statusCode === 404) {
                 return handleRouteMissing();
@@ -126,17 +128,17 @@ export default defineNuxtPlugin((nuxtApp) => {
         }
     };
 
-    //function to fetch the full route data, check its status, and set up auto-start and status polling if the route is active
+    // function to fetch the full route data, check its status, and set up auto-start and status polling if the route is active
     const fetchFullRouteData = async () => {
         if (!state.routeId) return;
         state.isLoading = true;
         try {
             const res = await $api(`/routes/${state.routeId}`);
             const routeData = res.data || res;
-            state.fullRpouteData = routeData ?? null;
+            state.fullRouteData = routeData ?? null; // แก้จาก fullRpouteData
             const status = routeData?.status?.toUpperCase();
-            const inacctive = status && ['CANCELLED', 'COMPLETED'].includes(status);
-            if (inacctive) {
+            const inactive = status && ['CANCELLED', 'COMPLETED'].includes(status); // แก้จาก inacctive
+            if (inactive) {
                 return handleRouteInactive(status);
             }
 
@@ -155,9 +157,9 @@ export default defineNuxtPlugin((nuxtApp) => {
         }
     }
 
-    //function to schedule the auto-start of the journey based on the route's departure time, with a grace period for late starts
+    // function to schedule the auto-start of the journey based on the route's departure time, with a grace period for late starts
     const scheduleAutoStart = () => {
-        if (state.fullRouteData?.departureTime) return;
+        if (!state.fullRouteData?.departureTime) return; // เพิ่ม ! เข้าไปเพื่อให้ Logic ถูกต้อง
         const departureMs = new Date(state.fullRouteData.departureTime).getTime();
         const now = Date.now();
         const delay = departureMs - now;
@@ -170,25 +172,25 @@ export default defineNuxtPlugin((nuxtApp) => {
         }
     };
 
-    //function to start the journey tracking, set up the geolocation watch, and handle GPS updates for proximity tracking
+    // function to start the journey tracking, set up the geolocation watch, and handle GPS updates for proximity tracking
     const startJourney = (auto = false) => {
         if (state.isTracking || !state.routeId) return;
         state.isTracking = true;
-        state.hashAutoStarted = auto;
-        appendLog(suto ? 'Journey auto-started!' : 'Journey started manually.');
+        state.hasAutoStarted = auto; // แก้จาก hashAutoStarted
+        appendLog(auto ? 'Journey auto-started!' : 'Journey started manually.'); // แก้จาก suto
 
         state.watchId = navigator.geolocation.watchPosition(
             (pos) => {
                 const { latitude, longitude } = pos.coords;
                 appendLog(`Current location: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
-                state.proximity.updatePosition(latitude, longitude);
+                state.proximity?.updatePosition(latitude, longitude); // เพิ่ม Optional Chaining (?)
             },
-            (err) =>    appendLog(`Geolocation error: ${err.message}`, 'error'),
+            (err) => appendLog(`Geolocation error: ${err.message}`, 'error'),
             { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
         );
     };
 
-    //function to initialize the tracker for a specific route, fetch necessary data, and set up proximity tracking
+    // function to initialize the tracker for a specific route, fetch necessary data, and set up proximity tracking
     const bootForRoute = async (routeId) => {
         if (!routeId) return;
         state.routeId = routeId;
@@ -198,44 +200,46 @@ export default defineNuxtPlugin((nuxtApp) => {
         await Promise.all([fetchPassengersForGPS(), fetchFullRouteData()]);
     };
 
-    //function to handle cases where the route is not found (e.g., deleted or invalid) and attempt to auto-pick another upcoming route
+    // function to handle cases where the route is not found (e.g., deleted or invalid) and attempt to auto-pick another upcoming route
     const autoPickUpcomingRoute = async () => {
         if (state.routeId) return;
         try {
-            appendLog('find upcoming route...');
-            const res = await $api.get('/routes/me');
+            appendLog('Finding upcoming route...');
+            const res = await $api('/routes/me'); // แก้เป็น $api ธรรมดา หรือ $api.get ตามที่คุณ Config ไว้
+            const routes = res.data || res || []; // เพิ่มบรรทัดนี้เพื่อป้องกัน routes is not defined
             const now = Date.now();
 
-            const cadidates = routes
+            const candidates = routes // แก้จาก cadidates
                 .map((r) => ({ ...r, departureMs: new Date(r.departureTime).getTime()}))
                 .filter((r) => {
-                    const status = (r.status || '').toLowerCase();
-                    const isValiodStatus = ['upcoming', 'ongoing'].includes(status);
+                    const status = (r.status || '').toUpperCase();
+                    const isValidStatus = !['CANCELLED', 'COMPLETED'].includes(status); // ปรับ Logic สถานะ
                     const isTimeValid = r.departureMs > (now - GRACE_PERIOD_MS);
-                    return isValiodStatus && isTimeValid;
+                    return isValidStatus && isTimeValid; // แก้จาก isValiodStatus
                 })
                 .sort((a, b) => a.departureMs - b.departureMs);
 
-            if (cadidates.length > 0) {
-                await bootForRoute(cadidates[0].id);
+            if (candidates.length > 0) {
+                await bootForRoute(candidates[0].id);
             } else {
                 appendLog('No upcoming routes found.');
             }
         } catch (e) {
-            appendLog(`Failed to fetch upcoming routes. : ${e.message}`, 'error');
+            appendLog(`Failed to fetch upcoming routes: ${e.message}`, 'error');
         }
     };   
     
     setTimeout(() => {
         const savedRouteId = localStorage.getItem(STORAGE_KEY);
         if (savedRouteId) {
-            bootForRoute(savedRouteId);
+            // เพิ่ม .catch() เพื่อจัดการกรณีโหลดของเดิมไม่ได้
+            bootForRoute(savedRouteId).catch(() => autoPickUpcomingRoute());
         } else {
             autoPickUpcomingRoute();
         }
     }, 1500);
 
-    //expose the driverTripTracker object with methods to manage the route and tracking state, and make it available in the Nuxt app context and globally on the window object for debugging
+    // expose the driverTripTracker object with methods to manage the route and tracking state...
     const driverTripTracker = {
         setRoute: (routeId) => bootForRoute(routeId),
         autoPick: () => autoPickUpcomingRoute(),
