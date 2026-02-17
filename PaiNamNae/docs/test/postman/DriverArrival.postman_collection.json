@@ -1,0 +1,152 @@
+{
+  "info": {
+    "name": "Driver Arrival/Proximity Alert",
+    "_postman_id": "driver-arrival-proximity",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Login - Driver",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "url": "{{baseUrl}}/api/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{ \"email\": \"{{driver_email}}\", \"password\": \"{{driver_password}}\" }"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('login ok', () => pm.response.to.have.status(200));",
+              "const resp = pm.response.json().data;",
+              "pm.environment.set('driver_token', resp.token);",
+              "pm.environment.set('driver_id', resp.user.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Login - Passenger",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "url": "{{baseUrl}}/api/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{ \"email\": \"{{passenger_email}}\", \"password\": \"{{passenger_password}}\" }"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('login ok', () => pm.response.to.have.status(200));",
+              "const resp = pm.response.json().data;",
+              "pm.environment.set('passenger_token', resp.token);",
+              "pm.environment.set('passenger_id', resp.user.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notify Driver Near (Arrival)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Content-Type", "value": "application/json"},
+          {"key": "Authorization", "value": "Bearer {{driver_token}}"}
+        ],
+        "url": "{{baseUrl}}/api/notifications/proximity-alert",
+        "body": {
+          "mode": "raw",
+          "raw": "{ \"passengerId\": \"{{passenger_id}}\", \"routeId\": \"{{route_id}}\" }"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('201/200', () => pm.expect([200,201]).to.include(pm.response.code));",
+              "const body = pm.response.json();",
+              "const n = body.data;",
+              "if (n) {",
+              "  pm.environment.set('notification_id', n.id);",
+              "  pm.test('type ROUTE', () => pm.expect(n.type).to.eql('ROUTE'));",
+              "  pm.test('kind PROXIMITY_ALERT', () => pm.expect(n.metadata?.kind).to.eql('PROXIMITY_ALERT'));",
+              "  pm.test('route matches', () => pm.expect(n.metadata?.routeId).to.eql(pm.environment.get('route_id')));",
+              "}",
+              "if (body.duplicated) { pm.test('duplicated flag', () => pm.expect(body.duplicated).to.be.true); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Fetch Notifications (Passenger)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {"key": "Authorization", "value": "Bearer {{passenger_token}}"}
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/notifications?type=ROUTE&sortOrder=desc",
+          "host": ["{{baseUrl}}"],
+          "path": ["api","notifications"],
+          "query": [
+            { "key": "type", "value": "ROUTE" },
+            { "key": "sortOrder", "value": "desc" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200 ok', () => pm.response.to.have.status(200));",
+              "const items = pm.response.json().data || [];",
+              "const routeId = pm.environment.get('route_id');",
+              "const hit = items.find(n => n.metadata?.kind === 'PROXIMITY_ALERT' && n.metadata?.routeId === routeId);",
+              "pm.test('arrival notification exists', () => pm.expect(Boolean(hit)).to.be.true);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notify Again (Expect duplicate)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Content-Type", "value": "application/json"},
+          {"key": "Authorization", "value": "Bearer {{driver_token}}"}
+        ],
+        "url": "{{baseUrl}}/api/notifications/proximity-alert",
+        "body": {
+          "mode": "raw",
+          "raw": "{ \"passengerId\": \"{{passenger_id}}\", \"routeId\": \"{{route_id}}\" }"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200 duplicate ok', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('duplicated true', () => pm.expect(body.duplicated).to.be.true);"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
