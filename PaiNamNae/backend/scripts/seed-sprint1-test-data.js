@@ -44,10 +44,10 @@ const verificationSeed = {
     process.env.SEED_DRIVER_LICENSE_EXPIRY_DATE || "2030-01-01T00:00:00.000Z",
   licensePhotoUrl:
     process.env.SEED_DRIVER_LICENSE_PHOTO_URL ||
-    "https://example.com/seed-driver-license.jpg",
+    "https://drive.google.com/file/d/1ppQ3aWJXvaZ-hv6XafsTxG1qIVNxBXNP/view?usp=sharing",
   selfiePhotoUrl:
     process.env.SEED_DRIVER_SELFIE_PHOTO_URL ||
-    "https://example.com/seed-driver-selfie.jpg",
+    "https://drive.google.com/file/d/1h-26H-YPd5-eyGaaV9_eosh72OpwZspE/view?usp=sharing",
   typeOnLicense: process.env.SEED_DRIVER_LICENSE_TYPE || "PRIVATE_CAR",
   status: "APPROVED",
 };
@@ -66,7 +66,7 @@ const vehicleSeed = {
     .filter(Boolean),
   photos: [
     process.env.SEED_DRIVER_VEHICLE_PHOTO_URL ||
-      "https://example.com/seed-driver-car.jpg",
+      "https://drive.google.com/file/d/1h-26H-YPd5-eyGaaV9_eosh72OpwZspE/view?usp=sharing",
   ],
   isDefault: true,
 };
