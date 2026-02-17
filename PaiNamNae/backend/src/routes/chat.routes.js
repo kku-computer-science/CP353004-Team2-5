@@ -22,10 +22,10 @@ router.get(
   chatController.getChatHistory
 );
 
-// POST /api/chat/:bookingId/message
+// POST /api/chat/:bookingId/messages
 // ส่งข้อความใหม่
 router.post(
-  '/:bookingId/message', 
+  '/:bookingId/messages', 
   protect,
   validate({ 
     params: chatParamsSchema, // ตรวจสอบ bookingId

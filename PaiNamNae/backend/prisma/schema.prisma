@@ -77,13 +77,6 @@ enum AuditAction {
   SOS_TRIGGERED     // กดปุ่มฉุกเฉิน
 }
 
- // เพิ่ม ENUM ใหม่
-enum MessageType {
-  TEXT
-  IMAGE
-  SYSTEM
-}
-
 model User {
   id                    String   @id @default(cuid())
   username              String   @unique

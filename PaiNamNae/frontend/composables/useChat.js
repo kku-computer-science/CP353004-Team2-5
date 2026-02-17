@@ -1,100 +1,171 @@
-// composables/useChat.js
+// frontend/composables/useChat.js
+// composable นี้ดูแลการเชื่อมต่อ socket, โหลดประวัติข้อความ, ข้อมูลห้อง (booking),
+// ส่งข้อความผ่าน API แล้ว broadcast ผ่าน socket
 import { ref, onUnmounted } from 'vue';
 import { io } from 'socket.io-client';
 
 export function useChat() {
   const socket = ref(null);
-  const messages = ref([]);
-  const isConnected = ref(false);
-  const currentRoomId = ref(null);
+  const messages = ref([]);         // ข้อความในห้อง (array ของ message objects)
+  const currentRoomId = ref(null);  // bookingId
+  const chatInfo = ref(null);       // ข้อมูล booking (มี driver / passenger)
+  let authToken = null;
 
-  // เชื่อมต่อ Socket Server
+  // ค่า API base (แนะนำตั้ง VITE_API_URL ใน .env ของ frontend)
+  const API = import.meta.env.VITE_API_URL || (window.location.origin.includes('3001') ? 'http://localhost:3000' : window.location.origin);
+
+  // สร้าง socket connection (token เป็น optional — ถ้าไม่ส่ง จะอ่านจาก localStorage)
   const connectSocket = (token) => {
-    if (socket.value) return;
+    if (socket.value) return; // กันสร้างซ้ำ
+    authToken = token || localStorage.getItem('token') || null;
 
-    // เปลี่ยน URL ตาม Server ของคุณ
-    const URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-    
-    socket.value = io(URL, {
-      auth: { token }, // ส่ง Token ไปยืนยันตัวตน
+    // เชื่อมไปที่ host ของ backend (ถ้าใช้ VITE_API_URL ให้ตั้งให้ชัดเจน)
+    const base = API.replace(/\/$/, '');
+
+    // ไม่จำเป็นต้องใส่ token ใน auth ถ้า backend ไม่ตรวจ socket auth,
+    // แต่ยังใส่ไว้เผื่อในอนาคตจะใช้
+    socket.value = io(base, {
       transports: ['websocket'],
+      auth: authToken ? { token: authToken } : undefined,
+      autoConnect: true,
     });
 
     socket.value.on('connect', () => {
-      isConnected.value = true;
-      console.log('✅ Socket connected:', socket.value.id);
+      console.log('socket connected', socket.value.id);
+      // ถ้าร่วมห้องแล้ว ให้ join อีกครั้ง
+      if (currentRoomId.value) {
+        socket.value.emit('join_room', String(currentRoomId.value));
+      }
     });
 
-    socket.value.on('disconnect', () => {
-      isConnected.value = false;
-      console.log('❌ Socket disconnected');
+    // รับข้อความ realtime จาก server
+    socket.value.on('receive_message', (msg) => {
+      try {
+        // ป้องกัน duplicate (ถ้ามี id)
+        if (msg?.id) {
+          if (!messages.value.find((m) => m.id === msg.id)) {
+            messages.value.push(msg);
+          }
+        } else {
+          // ถ้าไม่มี id ให้ push แบบ fallback (แต่ควรมี id จาก DB)
+          messages.value.push(msg);
+        }
+      } catch (e) {
+        console.error('receive_message handler error', e);
+      }
     });
 
-    // รับข้อความใหม่จาก Server (Real-time)
-    socket.value.on('receive_message', (message) => {
-      messages.value.push({
-        text: message.text,
-        isMe: false, // ข้อความที่รับมา = ฝั่งตรงข้าม
-        createdAt: message.createdAt || new Date().toISOString(),
-      });
+    socket.value.on('disconnect', (reason) => {
+      console.log('socket disconnected', reason);
+    });
+
+    socket.value.on('connect_error', (err) => {
+      console.warn('socket connect_error', err);
     });
   };
 
-  // เข้าร่วมห้องแชท (Join Room)
+  // เข้าห้องแชท: - โหลด booking info (driver/passenger) - โหลดประวัติข้อความ - join socket room
   const joinChatRoom = async (bookingId) => {
-    if (!socket.value) return;
-    
-    // 1. Leave ห้องเก่าถ้ามี
-    if (currentRoomId.value) {
-      socket.value.emit('leave_room', currentRoomId.value);
+    if (!bookingId) return;
+    currentRoomId.value = bookingId;
+
+    // ดึง booking info (เอา driver, passenger)
+    try {
+      const token = authToken || localStorage.getItem('token');
+      const res = await fetch(`${API}/api/bookings/${bookingId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const j = await res.json();
+        // API ของ backend คืน { success: true, data: booking }
+        chatInfo.value = j.data;
+      } else {
+        console.warn('fetch booking failed', res.status);
+      }
+    } catch (e) {
+      console.error('fetch booking error', e);
     }
 
-    // 2. Set ห้องใหม่
-    currentRoomId.value = bookingId;
-    socket.value.emit('join_room', bookingId);
+    // โหลดประวัติข้อความ
+    try {
+      const token = authToken || localStorage.getItem('token');
+      const res = await fetch(`${API}/api/chat/${bookingId}/messages`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const j = await res.json();
+        messages.value = Array.isArray(j.data) ? j.data : [];
+      } else {
+        console.warn('fetch messages failed', res.status);
+      }
+    } catch (e) {
+      console.error('fetch messages error', e);
+    }
 
-    // 3. (Optional) Fetch History from REST API here
-    // const history = await fetch(`/api/chat/${bookingId}`);
-    // messages.value = history; 
-    
-    // Reset message ชั่วคราว (หรือใส่ History ที่ดึงมาแทน)
-    messages.value = []; 
+    // Join socket room (ถ้า connected)
+    if (!socket.value) {
+      // ถ้า socket ยังไม่เชื่อม ให้เชื่อม (จะอ่าน token จาก authToken/localStorage)
+      connectSocket(authToken);
+    }
+    // emit join
+    socket.value?.emit('join_room', String(bookingId));
   };
 
-  // ส่งข้อความ
-  const sendMessage = (text, senderId) => {
-    if (!socket.value || !text.trim()) return;
+  // ส่งข้อความ: 1) POST ไป API เพื่อบันทึก 2) emit ผ่าน socket เพื่อให้ other clients ได้รับ
+  const sendMessage = async (content, sender = null, type = 'TEXT') => {
+    if (!currentRoomId.value) throw new Error('No room joined');
+    const token = authToken || localStorage.getItem('token');
 
-    // Emit event ไปหา Server
-    const payload = {
-      room: currentRoomId.value,
-      text: text,
-      senderId: senderId, // หรือ Server แกะจาก Token ก็ได้
-      createdAt: new Date().toISOString(),
-    };
+    const payload = { content, type };
 
-    socket.value.emit('send_message', payload);
+    try {
+      const res = await fetch(`${API}/api/chat/${currentRoomId.value}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
 
-    // Push เข้า Local state ทันทีเพื่อให้ UI ลื่นไหล (Optimistic UI)
-    messages.value.push({
-      text: text,
-      isMe: true,
-      createdAt: payload.createdAt,
-    });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Send message failed: ${res.status} ${errText}`);
+      }
+
+      const j = await res.json();
+      const message = j.data;
+
+      // append local (ถ้ายังไม่มี)
+      if (!messages.value.find((m) => m.id === message.id)) {
+        messages.value.push(message);
+      }
+
+      // แจ้ง socket ให้ broadcast (server ของคุณจะ emit receive_message ให้ทุกคนในห้อง)
+      socket.value?.emit('send_message', {
+        room: String(currentRoomId.value),
+        ...message,
+      });
+
+      return message;
+    } catch (e) {
+      console.error('sendMessage error', e);
+      throw e;
+    }
   };
 
-  // Cleanup เมื่อ Component ถูกทำลาย
   onUnmounted(() => {
     if (socket.value) {
-      socket.value.disconnect();
+      try {
+        socket.value.disconnect();
+      } catch (e) {}
       socket.value = null;
     }
   });
 
   return {
-    socket,
     messages,
-    isConnected,
+    chatInfo,
     connectSocket,
     joinChatRoom,
     sendMessage,

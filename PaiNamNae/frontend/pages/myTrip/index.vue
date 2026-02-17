@@ -156,7 +156,7 @@
                                         </button>
 
                                         <div class="flex space-x-2">
-                                            <button @click.stop="openChat(trip)"
+                                            <button @click.stop="goToChat(trip.id)"
                                                 class="inline-flex items-center px-4 py-2 text-sm text-white transition duration-200 bg-blue-600 rounded-md hover:bg-blue-700">
                                                 <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -264,6 +264,7 @@ import { useToast } from '~/composables/useToast'
 import ChatWindow from '@/components/ChatWindow.vue'
 import { useChat } from '@/composables/useChat'
 import { useAuth } from '~/composables/useAuth'
+import { useRouter } from 'vue-router'
 
 // Setup dayjs for Thai locale
 dayjs.locale('th')
@@ -271,6 +272,7 @@ dayjs.extend(buddhistEra)
 
 const { $api } = useNuxtApp()
 const { toast } = useToast()
+const router = useRouter()
 
 // --- State Management ---
 const activeTab = ref('pending')
@@ -634,6 +636,12 @@ const openChat = (trip) => {
     messages.value = []          // reset ก่อน
     joinChatRoom(trip.id)
     isChatOpen.value = true
+}
+
+// เปลี่ยนเส้นทางไปหน้าแชทเต็มจอ
+const goToChat = (bookingId) => {
+    if (!bookingId) return
+    router.push(`/chat/${bookingId}`)
 }
 
 //---เปลี่ยนเป็น user id จริงจาก auth---
