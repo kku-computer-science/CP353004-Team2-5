@@ -6,7 +6,7 @@ const protect = asyncHandler(async (req, res, next) => {
     let token;
     const authHeader = req.headers.authorization;
 
-    if (authHeader && authHeader.startsWith('Bearer')) {
+    if (authHeader && authHeader.startsWith('Bearer ')) {
         try {
             // Get token from header
             token = authHeader.split(' ')[1];
@@ -23,7 +23,12 @@ const protect = asyncHandler(async (req, res, next) => {
             next();
         } catch (error) {
             console.error(error);
-            throw new ApiError(401, 'Not authorized, token failed');
+
+            if (error.name === "TokenExpiredError") {
+                throw new ApiError(401, "Token expired");
+            }
+
+            throw new ApiError(401, "Not authorized, token failed");
         }
     }
 
