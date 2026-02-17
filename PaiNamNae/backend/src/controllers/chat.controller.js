@@ -66,4 +66,107 @@ module.exports = {
   sendMessage,
   getChatHistory,
   markMessagesAsRead
+};// services/chat.service.js
+const prisma = require('../utils/prisma');
+const ApiError = require('../utils/ApiError');
+
+/**
+ * สร้างข้อความใหม่ (หัวใจของระบบ)
+ */
+const createMessage = async ({ bookingId, senderId, content, type }) => {
+  // 1. ตรวจสอบห้องแชทก่อน
+  const chatRoom = await prisma.chatRoom.findUnique({
+    where: { bookingId },
+    include: { booking: { include: { route: true } } }
+  });
+
+  if (!chatRoom) throw new ApiError(404, 'ไม่พบห้องสนทนาสำหรับการจองนี้');
+
+  // 2. [Privacy-First] เช็คว่าผู้ส่งคือ Driver หรือ Passenger จริงหรือไม่
+  const isPassenger = chatRoom.booking.passengerId === senderId;
+  const isDriver = chatRoom.booking.route.driverId === senderId;
+  
+  if (!isPassenger && !isDriver) {
+    throw new ApiError(403, 'คุณไม่มีสิทธิ์ส่งข้อความในห้องนี้');
+  }
+
+  // 3. [Privacy-First] เช็คว่าห้องแชทถูกปิดไปแล้วหรือยัง (จบงาน/ยกเลิก)
+  if (!chatRoom.isActive) {
+    throw new ApiError(403, 'ห้องสนทนาถูกปิดเนื่องจากการเดินทางสิ้นสุดลงแล้ว');
+  }
+
+  // 4. บันทึกข้อความและแจ้งเตือน
+  return await prisma.$transaction(async (tx) => {
+    const newMessage = await tx.message.create({
+      data: {
+        chatRoomId: chatRoom.id,
+        senderId,
+        content,
+        type
+      }
+    });
+
+    // 5. [Seamless] สร้าง Notification ให้อีกฝ่ายทันที
+    const recipientId = isPassenger ? chatRoom.booking.route.driverId : chatRoom.booking.passengerId;
+    
+    await tx.notification.create({
+      data: {
+        userId: recipientId,
+        type: 'CHAT',
+        title: `ข้อความใหม่จาก ${isDriver ? 'คนขับ' : 'ผู้โดยสาร'}`,
+        body: type === 'TEXT' ? content : 'ส่งรูปภาพหรือตำแหน่ง',
+        metadata: { bookingId, chatRoomId: chatRoom.id }
+      }
+    });
+
+    return newMessage;
+  });
+};
+
+/**
+ * ดึงประวัติแชท (Seamless History)
+ */
+const getMessagesByBooking = async (bookingId, userId) => {
+  const chatRoom = await prisma.chatRoom.findUnique({
+    where: { bookingId },
+    include: { booking: { include: { route: true } } }
+  });
+
+  if (!chatRoom) throw new ApiError(404, 'ไม่พบประวัติการสนทนา');
+
+  // ตรวจสอบสิทธิ์การเข้าดู
+  if (chatRoom.booking.passengerId !== userId && chatRoom.booking.route.driverId !== userId) {
+    throw new ApiError(403, 'คุณไม่มีสิทธิ์ดูข้อความในห้องนี้');
+  }
+
+  return await prisma.message.findMany({
+    where: { chatRoomId: chatRoom.id },
+    orderBy: { createdAt: 'asc' }
+  });
+};
+
+/**
+ * Mark as Read
+ */
+const markAsRead = async (bookingId, userId) => {
+  const chatRoom = await prisma.chatRoom.findUnique({
+    where: { bookingId }
+  });
+
+  if (chatRoom) {
+    await prisma.message.updateMany({
+      where: {
+        chatRoomId: chatRoom.id,
+        senderId: { not: userId }, // ไม่อ่านข้อความตัวเอง
+        isRead: false
+      },
+      data: { isRead: true }
+    });
+  }
+};
+
+module.exports = {
+  createMessage,
+  getMessagesByBooking,
+  markAsRead
 };
