@@ -232,12 +232,12 @@ model Message {
   id        String   @id @default(cuid())
 
   bookingId String
-  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   senderId  String
-  sender    User    @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  sender    User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
-  content   String  @db.Text
+  content   String
   type      MessageType @default(TEXT)
 
   createdAt DateTime @default(now())

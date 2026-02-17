@@ -13,6 +13,10 @@ const ApiError = require('./src/utils/ApiError')
 const { metricsMiddleware } = require('./src/middlewares/metrics');
 const ensureAdmin = require('./src/bootstrap/ensureAdmin');
 
+const prisma = require('./src/utils/prisma');
+const http = require('http');
+const {server} = require("socket.io");
+
 const app = express();
 promClient.collectDefaultMetrics();
 
@@ -88,9 +92,10 @@ const PORT = process.env.PORT || 3000;
         console.error('Admin bootstrap failed:', e);
     }
 
-    app.listen(PORT, () => {
+    /*app.listen(PORT, () => {
         console.log(`🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-    });
+    });*/
+    
 })();
 // Graceful Shutdown
 process.on('unhandledRejection', (err) => {
