@@ -44,7 +44,6 @@ const searchBookingsAdmin = async (opts = {}) => {
         ...(q ? {
           OR: [
             { routeSummary: { contains: q, mode: 'insensitive' } },
-            // ถ้าต้องการค้นทะเบียนรถ/รุ่นรถ
             {
               vehicle: {
                 is: {
@@ -112,7 +111,6 @@ const adminCreateBooking = async (data) => {
     const route = await tx.route.findUnique({ where: { id: data.routeId } });
     if (!route) throw new ApiError(404, 'Route not found');
 
-    // ป้องกันการจองให้คนขับเอง
     if (route.driverId === data.passengerId) {
       throw new ApiError(400, 'Driver cannot book their own route.');
     }
@@ -130,7 +128,10 @@ const adminCreateBooking = async (data) => {
         numberOfSeats: data.numberOfSeats,
         pickupLocation: data.pickupLocation,
         dropoffLocation: data.dropoffLocation,
-        // status: (default -> PENDING)
+        // สร้าง ChatRoom ทันที เพื่อรองรับการสื่อสาร (admin create อาจจะเปิดเลยหรือปิดไว้ก่อนก็ได้)
+        chatRoom: {
+           create: { isActive: true }
+        }
       },
     });
 
@@ -152,7 +153,6 @@ const adminUpdateBooking = async (id, patch) => {
     });
     if (!existing) throw new ApiError(404, 'Booking not found');
 
-    // ค่าเป้าหมาย
     const targetStatus = patch.status ?? existing.status;
     const oldActive = ACTIVE_STATUSES.includes(existing.status);
     const newActive = ACTIVE_STATUSES.includes(targetStatus);
@@ -160,7 +160,6 @@ const adminUpdateBooking = async (id, patch) => {
     const targetSeats = patch.numberOfSeats ?? existing.numberOfSeats;
     const targetPassengerId = patch.passengerId ?? existing.passengerId;
 
-    // helper คืนที่นั่งให้ route
     const refundSeats = async (routeId, seats) => {
       const r = await tx.route.update({
         where: { id: routeId },
@@ -170,7 +169,7 @@ const adminUpdateBooking = async (id, patch) => {
         await tx.route.update({ where: { id: routeId }, data: { status: RouteStatus.AVAILABLE } });
       }
     };
-    // helper จองที่นั่งจาก route (ตรวจเงื่อนไข)
+
     const reserveSeats = async (routeId, seats, passengerId) => {
       const r = await tx.route.findUnique({ where: { id: routeId } });
       if (!r) throw new ApiError(404, 'Route not found');
@@ -186,17 +185,13 @@ const adminUpdateBooking = async (id, patch) => {
       }
     };
 
-    // กรณีเปลี่ยน route/seats หรือเปลี่ยนสถานะระหว่าง active<->inactive
-    // ขั้นตอน: ถ้าปัจจุบันถือครองที่นั่งอยู่ (active) → refund ก่อน
     if (oldActive) {
       await refundSeats(existing.routeId, existing.numberOfSeats);
     }
-    // จากนั้น ถ้าปลายทางต้องถือครองที่นั่ง (newActive) → reserve ที่ route เป้าหมาย ด้วยจำนวนเป้าหมาย
     if (newActive) {
       await reserveSeats(targetRouteId, targetSeats, targetPassengerId);
     }
 
-    // อัปเดตข้อมูล booking
     const updated = await tx.booking.update({
       where: { id },
       data: {
@@ -209,6 +204,22 @@ const adminUpdateBooking = async (id, patch) => {
       },
       include: { route: true, passenger: true }
     });
+
+    // --- Admin Update Chat Logic ---
+    // ถ้า Admin เปลี่ยนสถานะเป็น จบงาน/ยกเลิก ให้ปิดแชทด้วย
+    if (['COMPLETED', 'CANCELLED', 'REJECTED'].includes(targetStatus)) {
+        await tx.chatRoom.updateMany({
+            where: { bookingId: id },
+            data: { isActive: false }
+        });
+    } else if (['CONFIRMED', 'PICKUP'].includes(targetStatus)) {
+         // ถ้าเปลี่ยนกลับมาเป็น active ให้เปิดแชท
+         await tx.chatRoom.updateMany({
+            where: { bookingId: id },
+            data: { isActive: true }
+        });
+    }
+
     return updated;
   });
 };
@@ -235,6 +246,7 @@ const createBooking = async (data, passengerId) => {
       throw new ApiError(400, 'Not enough seats available on this route.');
     }
 
+    // สร้าง Booking พร้อม ChatRoom (1-to-1)
     const booking = await tx.booking.create({
       data: {
         routeId: data.routeId,
@@ -242,6 +254,13 @@ const createBooking = async (data, passengerId) => {
         numberOfSeats: data.numberOfSeats,
         pickupLocation: data.pickupLocation,
         dropoffLocation: data.dropoffLocation,
+        // --- CHAT SYSTEM INTEGRATION ---
+        // สร้างห้องแชททันทีที่จอง เพื่อให้พร้อมใช้งาน
+        // isActive: true -> เริ่มคุยได้เลย (หรือจะ set false รอ confirm ก็ได้ แล้วแต่นโยบาย)
+        // เพื่อความ Seamless แนะนำ true แต่ถ้า Privacy จัดๆ ให้รอ updateBookingStatus
+        chatRoom: {
+            create: { isActive: true }
+        }
       },
     });
 
@@ -306,8 +325,9 @@ const getMyBookings = async (passengerId) => {
             }
           }
         }
-      }
-
+      },
+      // (Optional) Include ChatRoom Status ถ้า Frontend อยากรู้ว่าแชทปิดหรือยัง
+      chatRoom: { select: { id: true, isActive: true } }
     },
     orderBy: { createdAt: 'desc' },
   });
@@ -316,14 +336,19 @@ const getMyBookings = async (passengerId) => {
 const getBookingById = async (id) => {
   return prisma.booking.findUnique({
     where: { id },
-    include: { route: true, passenger: true },
+    include: { 
+        route: true, 
+        passenger: true,
+        // Include Chat info
+        chatRoom: { select: { id: true, isActive: true } } 
+    },
   });
 };
 
 const updateBookingStatus = async (id, status, userId) => {
   const booking = await prisma.booking.findUnique({
     where: { id },
-    include: { route: true },
+    include: { route: true, chatRoom: true }, // Include ChatRoom
   });
   if (!booking) throw new ApiError(404, 'Booking not found');
   if (booking.route.driverId !== userId) {
@@ -331,13 +356,42 @@ const updateBookingStatus = async (id, status, userId) => {
   }
 
   return prisma.$transaction(async (tx) => {
+    // 1. Update Booking Status
     const updated = await tx.booking.update({
       where: { id },
       data: { status },
+      include: { chatRoom: true }
     });
 
+    // 2. --- CHAT PRIVACY & LIFECYCLE MANAGEMENT ---
+    
+    // CASE A: เริ่มงาน (CONFIRMED / PICKUP) -> ต้องมั่นใจว่าแชทเปิดอยู่
+    if (['CONFIRMED', 'PICKUP'].includes(status)) {
+        if (booking.chatRoom) {
+            await tx.chatRoom.update({
+                where: { id: booking.chatRoom.id },
+                data: { isActive: true }
+            });
+        } else {
+            // เผื่อข้อมูลเก่าไม่มี ChatRoom (Fallback)
+            await tx.chatRoom.create({
+                data: { bookingId: id, isActive: true }
+            });
+        }
+    }
+
+    // CASE B: จบงาน/ปฏิเสธ (COMPLETED / REJECTED) -> ปิดแชททันที (Privacy-First)
+    if (['COMPLETED', 'REJECTED'].includes(status)) {
+        if (booking.chatRoom) {
+            await tx.chatRoom.update({
+                where: { id: booking.chatRoom.id },
+                data: { isActive: false }
+            });
+        }
+    }
+
+    // 3. Seat Refund Logic (for REJECTED)
     if (status === BookingStatus.REJECTED) {
-      // คืนที่นั่งให้ route
       const refunded = booking.numberOfSeats;
       const newSeats = booking.route.availableSeats + refunded;
       const routeUpdates = { availableSeats: newSeats };
@@ -358,11 +412,10 @@ const updateBookingStatus = async (id, status, userId) => {
           metadata: { kind: 'BOOKING_STATUS', bookingId: id, routeId: booking.route.id, status: 'REJECTED' }
         }
       });
-
     }
 
+    // 4. Notification (for CONFIRMED)
     if (status === BookingStatus.CONFIRMED) {
-      // 🔔 แจ้งเตือน Passenger เมื่อถูกยืนยัน
       await tx.notification.create({
         data: {
           userId: booking.passengerId,
@@ -382,7 +435,7 @@ const cancelBooking = async (id, passengerId, opts = {}) => {
 
   const booking = await prisma.booking.findUnique({
     where: { id },
-    include: { route: true },
+    include: { route: true, chatRoom: true },
   });
   if (!booking) throw new ApiError(404, 'Booking not found');
   if (booking.passengerId !== passengerId) throw new ApiError(403, 'Forbidden');
@@ -402,6 +455,15 @@ const cancelBooking = async (id, passengerId, opts = {}) => {
         cancelReason: reason || null,
       },
     });
+
+    // --- CHAT CLOSURE ---
+    // ผู้โดยสารกดยกเลิก -> ปิดแชททันที
+    if (booking.chatRoom) {
+        await tx.chatRoom.update({
+            where: { id: booking.chatRoom.id },
+            data: { isActive: false }
+        });
+    }
 
     // คืนที่นั่งให้เส้นทาง (เดิม)
     const refunded = booking.numberOfSeats;
@@ -443,9 +505,7 @@ const deleteBooking = async (id, userId) => {
     include: { route: true },
   });
   if (!booking) throw new ApiError(404, 'Booking not found');
-  // if (booking.status !== BookingStatus.REJECTED) {
-  //   throw new ApiError(400, 'Only cancelled/rejected bookings can be deleted');
-  // }
+  
   if (![BookingStatus.CANCELLED, BookingStatus.REJECTED].includes(booking.status)) {
     throw new ApiError(400, 'Only cancelled or rejected bookings can be deleted');
   }
@@ -455,6 +515,8 @@ const deleteBooking = async (id, userId) => {
   ) {
     throw new ApiError(403, 'Forbidden');
   }
+  // Note: ถ้าลบ Booking ปกติ Foreign Key ของ ChatRoom จะถูกลบตาม (Cascade Delete)
+  // หรือถ้าไม่ Cascade ก็จะค้างไว้ แต่ไม่มีผลอะไรเพราะ Booking หายไปแล้ว
   await prisma.booking.delete({ where: { id } });
   return { id };
 };
@@ -466,7 +528,6 @@ const adminDeleteBooking = async (id) => {
   });
   if (!booking) throw new ApiError(404, 'Booking not found');
 
-  // แอดมินลบได้ทุกสถานะ แต่ถ้าเป็น PENDING/CONFIRMED ให้คืนที่นั่งให้เส้นทางด้วย
   return prisma.$transaction(async (tx) => {
     if (booking.route) {
       if (booking.status === BookingStatus.PENDING || booking.status === BookingStatus.CONFIRMED) {
@@ -474,7 +535,6 @@ const adminDeleteBooking = async (id) => {
         const newSeats = booking.route.availableSeats + refunded;
 
         const routeUpdates = { availableSeats: newSeats };
-        // ถ้า route เคย FULL แล้วคืนที่นั่ง ทำให้กลับเป็น AVAILABLE
         if (booking.route.status === RouteStatus.FULL && newSeats > 0) {
           routeUpdates.status = RouteStatus.AVAILABLE;
         }
@@ -495,7 +555,6 @@ module.exports = {
   adminCreateBooking,
   createBooking,
   adminUpdateBooking,
-  adminCreateBooking,
   getMyBookings,
   getBookingById,
   updateBookingStatus,

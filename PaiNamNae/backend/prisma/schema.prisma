@@ -59,6 +59,22 @@ enum NotificationType {
   VERIFICATION
   BOOKING
   ROUTE
+  CHAT  // เพิ่ม CHAT
+}
+
+ // เพิ่ม ENUM ใหม่
+enum MessageType {
+  TEXT
+  IMAGE
+  LOCATION // ส่งจุดนัดพบ
+  SYSTEM   // ข้อความอัตโนมัติ เช่น "คนขับถึงแล้ว"
+}
+
+// เพิ่ม Action สำหรับ Audit Log (ความปลอดภัย)
+enum AuditAction {
+  LOGIN
+  VIEW_PHONE_NUMBER // ใครกดดูเบอร์จริง
+  SOS_TRIGGERED     // กดปุ่มฉุกเฉิน
 }
 
  // เพิ่ม ENUM ใหม่
@@ -92,19 +108,34 @@ model User {
   passengerSuspendedUntil DateTime?
   driverSuspendedUntil    DateTime?
 
+// Relations
   driverVerification    DriverVerification?
   vehicles              Vehicle[]
   notification          Notification[]
   createdRoutes         Route[]             @relation("DriverRoutes")
   bookings              Booking[]           @relation("PassengerBookings")
 
- //NEW RELATION
-  messages              Message[]
+// Chat & Safety Relations
+  sentMessages          Message[]         @relation("SentMessages")
+  auditLogs             AuditLog[]        @relation("UserAudit")
 
   @@index([role])
   @@index([isActive])
   @@index([isVerified])
   @@index([createdAt])
+}
+
+// เพ่ิม Model สำหรับเก็บ Log ความปลอดภัย (ใครทำอะไรเมื่อไหร่)
+model AuditLog {
+  id          String      @id @default(cuid())
+  userId      String?     
+  user        User?       @relation("UserAudit", fields: [userId], references: [id])
+  action      AuditAction
+  details     Json?       // เก็บ BookingId, IP Address
+  timestamp   DateTime    @default(now())
+
+  @@index([userId])
+  @@index([action])
 }
 
 model DriverVerification {
@@ -223,7 +254,24 @@ model Booking {
   dropoffLocation Json          @db.Json
   createdAt       DateTime      @default(now())
  //NEW RELATION
-  messages        Message[]
+  chatRoom        ChatRoom?
+
+  @@index([status])
+  @@index([passengerId])
+}
+
+// --- CHAT SYSTEM  ---
+
+model ChatRoom {
+  id          String    @id @default(cuid())
+  bookingId   String    @unique // เชื่อม 1-ต่อ-1 กับ Booking
+  booking     Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  
+  isActive    Boolean   @default(true) // True = คุยได้, False = จบงานแล้ว (Read-only)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  messages    Message[]
 }
 
  // NEW MODEL
@@ -231,18 +279,19 @@ model Booking {
 model Message {
   id        String   @id @default(cuid())
 
-  bookingId String
-  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  chatRoomId  String
+  chatRoom    ChatRoom    @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
 
   senderId  String
-  sender    User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  sender    User    @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
 
   content   String
   type      MessageType @default(TEXT)
+  isRead      Boolean     @default(false) // สถานะว่าอีกฝ่ายอ่านหรือยัง
 
   createdAt DateTime @default(now())
 
-  @@index([bookingId])
+  @@index([chatRoomId]) 
   @@index([senderId])
   @@index([createdAt])
 }

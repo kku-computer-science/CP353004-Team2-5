@@ -1,6 +1,7 @@
 <template>
     <div>
         <div class="px-4 py-8 mx-auto max-w-7xl sm:px-6 lg:px-8">
+            
             <div class="mb-8">
                 <h2 class="text-2xl font-bold text-gray-900">คำขอจองเส้นทางของฉัน</h2>
                 <p class="mt-2 text-gray-600">ดูและจัดการคำขอจองจากผู้โดยสารในเส้นทางที่คุณสร้าง</p>
@@ -349,6 +350,7 @@
                                     </template>
 
                                     <button v-else-if="trip.status === 'confirmed'"
+                                        @click.stop="goToChat(trip.id)"
                                         class="px-4 py-2 text-sm text-white transition duration-200 bg-blue-600 rounded-md hover:bg-blue-700">
                                         แชทกับผู้โดยสาร
                                     </button>
@@ -387,17 +389,26 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
+import { useToast } from '~/composables/useToast'
+import { useRouter } from 'vue-router'
+
 import dayjs from 'dayjs'
 import 'dayjs/locale/th'
 import buddhistEra from 'dayjs/plugin/buddhistEra'
 import ConfirmModal from '~/components/ConfirmModal.vue'
-import { useToast } from '~/composables/useToast'
 
 dayjs.locale('th')
 dayjs.extend(buddhistEra)
 
 const { $api } = useNuxtApp()
 const { toast } = useToast()
+const router = useRouter()
+
+// เพิ่ม
+const goToChat = (bookingId) => {
+  if (!bookingId) return
+  router.push(`/chat/${bookingId}`)
+}
 
 // --- State Management ---
 const activeTab = ref('pending')
