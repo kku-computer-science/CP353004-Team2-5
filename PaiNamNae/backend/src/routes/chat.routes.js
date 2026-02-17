@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const validate = require('../middlewares/validate'); // Middleware ตรวจสอบ Joi
+const { chatParamsSchema, sendMessageSchema } = require('../validations/chat.validation'); // Joi Schemas
 
 // Middlewares
 const { protect } = require('../middlewares/auth'); 
