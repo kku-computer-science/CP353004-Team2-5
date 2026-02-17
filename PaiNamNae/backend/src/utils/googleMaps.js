@@ -54,12 +54,22 @@ const getDirections = async ({ origin, destination, waypoints = [], alternatives
         params.waypoints = (optimizeWaypoints ? 'optimize:true|' : '') + wp.join('|');
     }
 
-    if (departureTime) {
+    if (departureTime && !isNaN(new Date(departureTime))) {
         params.departure_time = Math.floor(new Date(departureTime).getTime() / 1000);
     }
 
     const url = 'https://maps.googleapis.com/maps/api/directions/json';
     const { data } = await axios.get(url, { params });
+
+    console.log("Google response status:", data.status);
+    if (data.status !== 'OK') {
+        console.error("Google full response:", data);
+        const msg = data.error_message || data.status;
+        const err = new Error(`Google Directions error: ${msg}`);
+        err.code = data.status;
+        throw err;
+    }
+
     if (data.status !== 'OK') {
         const msg = data.error_message || data.status;
         const err = new Error(`Google Directions error: ${msg}`);
