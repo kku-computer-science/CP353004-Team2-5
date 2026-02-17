@@ -44,8 +44,10 @@ const errorHandler = (err, req, res, next) => {
 
     //สำหรับ Error 500 ทุกกรณี ให้ใช้ข้อความง่ายๆ เสมอ
     if (statusCode >= 500) {
-        message = 'เกิดข้อผิดพลาดภายในระบบ กรุณาลองใหม่ภายหลัง';
+        console.error("INTERNAL ERROR STACK:", err.stack);
+        message = err.message;
     }
+
 
     if (!res.headersSent) {
         res.set('Content-Type', 'application/json; charset=utf-8');
