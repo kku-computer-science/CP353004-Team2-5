@@ -3,6 +3,7 @@ const verifService = require("../services/driverVerification.service");
 const ApiError = require("../utils/ApiError");
 const { uploadToCloudinary } = require("../utils/cloudinary");
 const notifService = require('../services/notification.service');
+const { autoVerifyDriverVerification } = require("../services/autoverify.service");
 
 const adminListVerifications = asyncHandler(async (req, res) => {
   const result = await verifService.searchVerifications(req.query);
@@ -57,23 +58,44 @@ const createVerification = asyncHandler(async (req, res) => {
   };
 
   const newRec = await verifService.createVerification(payload);
+  const verifyResult = await autoVerifyDriverVerification(newRec);
+  const latestRec = await verifService.getVerificationById(newRec.id);
 
-  const notifPayload = {
-    userId,
-    type: 'VERIFICATION',
-    title: 'คำขอคนขับถูกส่งแล้ว',
-    body: 'เราได้รับข้อมูลใบขับขี่ของคุณแล้ว กำลังรอแอดมินตรวจสอบ',
-    link: '/driver-verification',
-    metadata: {
-      kind: 'driver_verification',
-      verificationId: newRec.id,
-      userId: newRec.userId,
-      status: newRec.status,
-      initiatedBy: 'user'
+  const notifPayload = verifyResult.verified
+    ? {
+      userId,
+      type: 'VERIFICATION',
+      title: 'ยืนยันตัวตนสำเร็จ',
+      body: `ข้อมูลใบขับขี่ของคุณผ่านการตรวจสอบแล้ว (${verifyResult.confidence.toFixed(2)}%)`,
+      link: '/driver-verification',
+      metadata: {
+        kind: 'driver_verification',
+        verificationId: latestRec.id,
+        userId: latestRec.userId,
+        status: latestRec.status,
+        initiatedBy: 'system',
+        method: 'auto',
+        confidence: verifyResult.confidence
+      }
     }
-  }
+    : {
+      userId,
+      type: 'VERIFICATION',
+      title: 'ยืนยันตัวตนไม่สำเร็จ',
+      body: 'ข้อมูลใบขับขี่ของคุณไม่ผ่านการตรวจสอบ กรุณาตรวจสอบและส่งใหม่อีกครั้ง',
+      link: '/driver-verification',
+      metadata: {
+        kind: 'driver_verification',
+        verificationId: latestRec.id,
+        userId: latestRec.userId,
+        status: latestRec.status,
+        initiatedBy: 'user',
+        method: 'manual_or_pending',
+        autoVerifyError: verifyResult.error || null
+      }
+    };
 
-  await notifService.createNotificationByAdmin(notifPayload)
+  await notifService.createNotificationByAdmin(notifPayload);
 
   res.status(201).json({
     success: true,
@@ -113,27 +135,69 @@ const updateVerification = asyncHandler(async (req, res) => {
 
   const updated = await verifService.updateVerification(id, payload);
 
-  const notifPayload = {
-    userId: updated.userId,
-    type: 'VERIFICATION',
-    title: 'คำขอคนขับถูกส่งแล้ว',
-    body: 'เราได้รับข้อมูลใบขับขี่ของคุณแล้ว กำลังรอแอดมินตรวจสอบ',
-    link: '/driver-verification',
-    metadata: {
-      kind: 'driver_verification',
-      verificationId: updated.id,
+  // Trigger auto-verification
+  const verifyResult = await autoVerifyDriverVerification(updated);
+
+  // Refresh record to get latest status if auto-verify updated it
+  const latestRec = await verifService.getVerificationById(updated.id);
+
+  const notifPayload = verifyResult.verified
+    ? {
       userId: updated.userId,
-      status: updated.status,
-      initiatedBy: 'user'
+      type: 'VERIFICATION',
+      title: 'ยืนยันตัวตนสำเร็จ',
+      body: `ข้อมูลใบขับขี่ของคุณผ่านการตรวจสอบแล้ว (${verifyResult.confidence.toFixed(2)}%)`,
+      link: '/driver-verification',
+      metadata: {
+        kind: 'driver_verification',
+        verificationId: latestRec.id,
+        userId: latestRec.userId,
+        status: latestRec.status,
+        initiatedBy: 'system',
+        method: 'auto',
+        confidence: verifyResult.confidence
+      }
     }
-  }
+    : (latestRec.status === 'REJECTED' // Auto-rejected due to low confidence
+      ? {
+        userId: updated.userId,
+        type: 'VERIFICATION',
+        title: 'ยืนยันตัวตนไม่สำเร็จ',
+        body: 'ข้อมูลใบขับขี่ของคุณไม่ผ่านการตรวจสอบ กรุณาตรวจสอบและส่งใหม่อีกครั้ง',
+        link: '/driver-verification',
+        metadata: {
+          kind: 'driver_verification',
+          verificationId: latestRec.id,
+          userId: latestRec.userId,
+          status: latestRec.status,
+          initiatedBy: 'system',
+          method: 'auto_reject',
+          confidence: verifyResult.confidence
+        }
+      }
+      : { // Still pending (error or not enough data to reject immediately, though autoVerify usually rejects if < threshold)
+        userId: updated.userId,
+        type: 'VERIFICATION',
+        title: 'คำขอคนขับถูกส่งแล้ว',
+        body: 'เราได้รับข้อมูลใบขับขี่ของคุณแล้ว กำลังรอแอดมินตรวจสอบ',
+        link: '/driver-verification',
+        metadata: {
+          kind: 'driver_verification',
+          verificationId: latestRec.id,
+          userId: latestRec.userId,
+          status: latestRec.status,
+          initiatedBy: 'user',
+          autoVerifyError: verifyResult.error || null
+        }
+      }
+    );
 
   await notifService.createNotificationByAdmin(notifPayload)
 
   res.status(200).json({
     success: true,
     message: "Driver verification updated successfully",
-    data: updated,
+    data: latestRec,
   });
 });
 
@@ -299,3 +363,4 @@ module.exports = {
   adminUpdateVerification,
   adminDeleteVerification,
 };
+
