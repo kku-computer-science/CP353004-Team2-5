@@ -53,7 +53,7 @@ export default defineNuxtPlugin((nuxtApp) => {
 
     //function to reset the tracker's state when switching routes or clearing the current route
     const resetRouteState = (routeId) => {
-        stopTimes();
+        stopTimers();
         state.isTracking = false;
         state.hasAutoStarted = false;
         state.fullRouteData = null;
@@ -218,8 +218,8 @@ export default defineNuxtPlugin((nuxtApp) => {
                 })
                 .sort((a, b) => a.departureMs - b.departureMs);
 
-            if (cadidates.length > 0) {
-                await bootForRoute(cadidates[0].id);
+            if (candidates.length > 0) {
+                await bootForRoute(candidates[0].id);
             } else {
                 appendLog('No upcoming routes found.');
             }
