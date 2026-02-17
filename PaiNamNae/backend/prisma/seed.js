@@ -17,7 +17,7 @@ async function main() {
     }
   })
 
-  console.log('Admin created successfully')
+  console.log('created successfully')
 }
 
 main()

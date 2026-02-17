@@ -92,9 +92,9 @@ const PORT = process.env.PORT || 3000;
         console.error('Admin bootstrap failed:', e);
     }
 
-    /*app.listen(PORT, () => {
+    app.listen(PORT, () => {
         console.log(`🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-    });*/
+    });
     
 })();
 // Graceful Shutdown
