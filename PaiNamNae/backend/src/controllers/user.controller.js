@@ -56,6 +56,9 @@ const getMyUser = asyncHandler(async (req, res) => {
     })
 
 })
+
+const { autoVerifyUser } = require("../services/autoverify.service");
+
 const createUser = asyncHandler(async (req, res) => {
     const userData = req.body;
 
@@ -63,37 +66,56 @@ const createUser = asyncHandler(async (req, res) => {
         throw new ApiError(400, "National ID photo and selfie photo are required.");
     }
 
-    // อัปโหลดรูปทั้งสองไปยัง Cloudinary
     const [nationalIdResult, selfieResult] = await Promise.all([
         uploadToCloudinary(req.files.nationalIdPhotoUrl[0].buffer, 'painamnae/national_ids'),
         uploadToCloudinary(req.files.selfiePhotoUrl[0].buffer, 'painamnae/selfies')
     ]);
 
-    // เพิ่ม URL ของรูปภาพเข้าไปในข้อมูลที่จะบันทึก
     userData.nationalIdPhotoUrl = nationalIdResult.url;
     userData.selfiePhotoUrl = selfieResult.url;
 
     const newUser = await userService.createUser(userData);
 
-    const notifPayload = {
-        userId: newUser.id,
-        type: 'VERIFICATION',
-        title: 'ข้อมูลยืนยันตัวตนถูกส่งแล้ว',
-        body: 'เราได้รับข้อมูลบัตรประชาชนและรูปถ่ายของคุณแล้ว กำลังรอแอดมินตรวจสอบ',
-        link: '/profile/verification',
-        metadata: {
-            kind: 'identity_verification_submission',
+    //AUTO VERIFY SECTION
+    const verifyResult = await autoVerifyUser(newUser);
+
+    const updatedUser = await userService.getUserById(newUser.id);
+
+    let notifPayload;
+
+    if (verifyResult.verified) {
+        notifPayload = {
             userId: newUser.id,
-            initiatedBy: 'user'
-        }
+            type: 'VERIFICATION',
+            title: 'ยืนยันตัวตนสำเร็จ',
+            body: `ระบบตรวจสอบอัตโนมัติผ่าน (${verifyResult.confidence.toFixed(2)}%)`,
+            link: '/profile',
+            metadata: {
+                confidence: verifyResult.confidence,
+                method: 'auto'
+            }
+        };
+    } else {
+        notifPayload = {
+            userId: newUser.id,
+            type: 'VERIFICATION',
+            title: 'กำลังรอการตรวจสอบ',
+            body: 'ข้อมูลของคุณอยู่ระหว่างการตรวจสอบโดยระบบหรือแอดมิน',
+            link: '/profile/verification',
+            metadata: {
+                method: 'auto_failed'
+            }
+        };
     }
 
-    await notifService.createNotificationByAdmin(notifPayload)
+    await notifService.createNotificationByAdmin(notifPayload);
 
     res.status(201).json({
         success: true,
-        message: "User created successfully. Please wait for verification.",
-        data: newUser
+        message: verifyResult.verified
+            ? "User created and auto-verified."
+            : "User created. Waiting for verification.",
+        data: updatedUser   
     });
 });
 
