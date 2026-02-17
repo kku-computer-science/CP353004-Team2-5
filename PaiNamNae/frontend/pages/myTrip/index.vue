@@ -156,7 +156,7 @@
                                         </button>
 
                                         <div class="flex space-x-2">
-                                            <button @click.stop="navigateToChat(trip.id)"
+                                            <button @click.stop="openChat(trip)"
                                                 class="inline-flex items-center px-4 py-2 text-sm text-white transition duration-200 bg-blue-600 rounded-md hover:bg-blue-700">
                                                 <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -237,6 +237,19 @@
         <ConfirmModal :show="isModalVisible" :title="modalContent.title" :message="modalContent.message"
             :confirmText="modalContent.confirmText" :variant="modalContent.variant" @confirm="handleConfirmAction"
             @cancel="closeConfirmModal" />
+    
+<!--  เพิ่ม ChatWindow  -->
+        <ChatWindow
+        v-if="currentTrip"
+        :is-open="isChatOpen"
+        :messages="messages"
+        :partner-name="currentTrip?.driver?.name || 'คนขับ'"
+        :partner-avatar="currentTrip?.driver?.image"
+        :is-active="true"
+        @toggle-open="(val) => isChatOpen = val"
+        @send-message="handleSendMessage"
+        />
+
     </div>
 </template>
 
@@ -247,6 +260,10 @@ import 'dayjs/locale/th'
 import buddhistEra from 'dayjs/plugin/buddhistEra'
 import ConfirmModal from '~/components/ConfirmModal.vue'
 import { useToast } from '~/composables/useToast'
+// เพิ่ม
+import ChatWindow from '@/components/ChatWindow.vue'
+import { useChat } from '@/composables/useChat'
+import { useAuth } from '~/composables/useAuth'
 
 // Setup dayjs for Thai locale
 dayjs.locale('th')
@@ -264,6 +281,11 @@ let map = null
 let currentPolyline = null
 let currentMarkers = []
 const allTrips = ref([])
+// ---เพิ่ม Chat State ---
+const { connectSocket, joinChatRoom, sendMessage, messages } = useChat()
+
+const isChatOpen = ref(false)
+const currentTrip = ref(null)
 
 let gmap = null // Google Map instance
 let activePolyline = null
@@ -607,8 +629,24 @@ const modalContent = ref({
 })
 
 // เพิ่มฟังชั่นไปหน้าแชท
-const navigateToChat = (bookingId) => {
-    navigateTo(`/chat/${bookingId}`)
+const openChat = (trip) => {
+    currentTrip.value = trip
+    messages.value = []          // reset ก่อน
+    joinChatRoom(trip.id)
+    isChatOpen.value = true
+}
+
+//---เปลี่ยนเป็น user id จริงจาก auth---
+const auth = useAuth()
+
+const userId = computed(() => auth.user.value?.id)
+
+const handleSendMessage = (text) => {
+  if (!userId.value) {
+    console.warn('user ยังไม่พร้อม')
+    return
+  }
+  sendMessage(text, userId.value)
 }
 
 //  [แทนที่โค้ดเดิม]
@@ -786,6 +824,9 @@ useHead({
 })
 
 onMounted(() => {
+    const token = localStorage.getItem('token')
+    if (token) connectSocket(token)
+
     // ถ้า script โหลดแล้ว
     if (window.google?.maps) {
         initializeMap()

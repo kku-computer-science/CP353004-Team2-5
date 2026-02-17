@@ -1,8 +1,16 @@
 const express = require('express');
+const router = express.Router();
+
+// Middlewares
 const validate = require('../middlewares/validate');
 const { protect, requireAdmin } = require('../middlewares/auth');
 const requireDriverVerified = require('../middlewares/driverVerified');
+const { requirePassengerNotSuspended } = require('../middlewares/suspension');
+
+// Controller
 const bookingController = require('../controllers/booking.controller');
+
+// Validations
 const {
   createBookingSchema,
   idParamSchema,
@@ -13,11 +21,9 @@ const {
   cancelBookingSchema,
 } = require('../validations/booking.validation');
 
-const { requirePassengerNotSuspended } = require('../middlewares/suspension');
-
-const router = express.Router();
-
 // --- Admin Routes ---
+
+
 // GET /bookings/admin (list + query)
 router.get(
   "/admin",
@@ -25,7 +31,7 @@ router.get(
   requireAdmin,
   validate({ query: listBookingsQuerySchema }),
   bookingController.adminListBookings
-)
+);
 
 // GET /bookings/admin/:id
 router.get(
@@ -34,7 +40,7 @@ router.get(
   requireAdmin,
   validate({ params: idParamSchema }),
   bookingController.adminGetBookingById
-)
+);
 
 // POST /bookings/admin
 router.post(
@@ -43,7 +49,7 @@ router.post(
   requireAdmin,
   validate({ body: createBookingByAdminSchema }),
   bookingController.adminCreateBooking
-)
+);
 
 // PUT /bookings/admin/:id
 router.put(
@@ -52,7 +58,7 @@ router.put(
   requireAdmin,
   validate({ params: idParamSchema, body: updateBookingByAdminSchema }),
   bookingController.adminUpdateBooking
-)
+);
 
 // DELETE /bookings/admin/:id
 router.delete(
